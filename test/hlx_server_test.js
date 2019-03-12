@@ -10,7 +10,7 @@
  * governing permissions and limitations under the License.
  */
 
-/* global describe, before, after, it */
+/* eslint-env mocha */
 /* eslint-disable no-underscore-dangle */
 
 const assert = require('assert');
@@ -105,13 +105,12 @@ async function assertHttp(url, status, spec, subst) {
 }
 
 describe('Helix Server', () => {
-  before(() => {
+  beforeEach(() => {
     // create git repos
     SPECS_WITH_GIT.forEach(initRepository);
   });
 
-  after(() => {
-    // create fake git repos
+  afterEach(() => {
     SPECS_WITH_GIT.forEach(removeRepository);
   });
 
@@ -406,6 +405,23 @@ describe('Helix Server', () => {
     }
   });
 
+  it('deliver content resource from git server', async () => {
+    const cwd = path.join(SPEC_ROOT, 'local');
+    const project = new HelixProject()
+      .withCwd(cwd)
+      .withBuildDir('./build')
+      .withHttpPort(0);
+    await project.init();
+    try {
+      await project.start();
+      await project.startGitServer();
+      await assertHttp(`http://localhost:${project.gitState.httpPort}/raw/helix/content/master/welcome.txt`, 200, 'expected_welcome.txt');
+    } finally {
+      await project.stop();
+    }
+  });
+
+
   it('deliver static content resource', async () => {
     const cwd = path.join(SPEC_ROOT, 'local');
     const project = new HelixProject()
@@ -422,6 +438,73 @@ describe('Helix Server', () => {
   });
 
   it('deliver static content resource from different branch', async () => {
+    const cwd = path.join(SPEC_ROOT, 'local');
+    const pwd = shell.pwd();
+    shell.cd(cwd);
+    shell.exec('git checkout -b foo');
+    shell.cd(pwd);
+    const project = new HelixProject()
+      .withCwd(cwd)
+      .withBuildDir('./build')
+      .withHttpPort(0);
+    await project.init();
+    try {
+      await project.start();
+      await assertHttp(`http://localhost:${project.server.port}/welcome.txt`, 200, 'expected_welcome.txt');
+    } finally {
+      await project.stop();
+      shell.cd(cwd);
+      shell.exec('git checkout master');
+      shell.cd(pwd);
+    }
+  });
+
+  it('deliver static content resource from config branch', async () => {
+    const cwd = path.join(SPEC_ROOT, 'local');
+    const pwd = shell.pwd();
+    shell.cd(cwd);
+    shell.exec('git checkout -b config');
+    shell.cd(pwd);
+    const project = new HelixProject()
+      .withCwd(cwd)
+      .withBuildDir('./build')
+      .withHttpPort(0);
+    await project.init();
+    try {
+      await project.start();
+      await assertHttp(`http://localhost:${project.server.port}/welcome.txt`, 200, 'expected_welcome.txt');
+    } finally {
+      await project.stop();
+      shell.cd(cwd);
+      shell.exec('git checkout master');
+      shell.cd(pwd);
+    }
+  });
+
+  it('deliver content resource from git server on different branch', async () => {
+    const cwd = path.join(SPEC_ROOT, 'local');
+    const pwd = shell.pwd();
+    shell.cd(cwd);
+    shell.exec('git checkout -b foo');
+    shell.cd(pwd);
+    const project = new HelixProject()
+      .withCwd(cwd)
+      .withBuildDir('./build')
+      .withHttpPort(0);
+    await project.init();
+    try {
+      await project.start();
+      await project.startGitServer();
+      await assertHttp(`http://localhost:${project.gitState.httpPort}/raw/helix/content/foo/welcome.txt`, 200, 'expected_welcome.txt');
+    } finally {
+      await project.stop();
+      shell.cd(cwd);
+      shell.exec('git checkout master');
+      shell.cd(pwd);
+    }
+  });
+
+  it('deliver static content resource from different branch with slash', async () => {
     const cwd = path.join(SPEC_ROOT, 'local');
     const pwd = shell.pwd();
     shell.cd(cwd);
@@ -442,6 +525,30 @@ describe('Helix Server', () => {
       shell.cd(pwd);
     }
   });
+
+  it('deliver content resource from git-server on different branch with slash', async () => {
+    const cwd = path.join(SPEC_ROOT, 'local');
+    const pwd = shell.pwd();
+    shell.cd(cwd);
+    shell.exec('git checkout -b foo/bar');
+    shell.cd(pwd);
+    const project = new HelixProject()
+      .withCwd(cwd)
+      .withBuildDir('./build')
+      .withHttpPort(0);
+    await project.init();
+    try {
+      await project.start();
+      await project.startGitServer();
+      await assertHttp(`http://localhost:${project.gitState.httpPort}/raw/helix/content/foo/bar/welcome.txt`, 200, 'expected_welcome.txt');
+    } finally {
+      await project.stop();
+      shell.cd(cwd);
+      shell.exec('git checkout master');
+      shell.cd(pwd);
+    }
+  });
+
 
   it('deliver static content resource (and webroot)', async () => {
     const cwd = path.join(SPEC_ROOT, 'local');
